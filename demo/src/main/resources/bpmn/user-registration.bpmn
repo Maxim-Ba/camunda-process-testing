@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1d2hcmz" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.20.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.20.0">
+  <bpmn:process id="user-registration-process" name="User Registration Process" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:startEvent id="StartEvent_1" name="Start Registration">
+      <bpmn:outgoing>Flow_InitScript</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Event_1b29eoh" name="Registration Complete">
+      <bpmn:incoming>Flow_0wjrb6b</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_InitScript" sourceRef="StartEvent_1" targetRef="Activity_InitVariables" />
+    <bpmn:sequenceFlow id="Flow_0pdzka0" sourceRef="Activity_InitVariables" targetRef="Activity_118iyp4" />
+    <bpmn:serviceTask id="Activity_118iyp4" name="create-registration-task">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="url">${SERVICE_API}/create-user</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="Accept">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="groovy">
+                import groovy.json.JsonOutput
+                JsonOutput.toJson([
+                  userId: execution.getVariable("userId"),
+                  userName: execution.getVariable("userName"),
+                  userEmail: execution.getVariable("userEmail"),
+                  registrationDate: execution.getVariable("registrationDate")
+                ])
+              </camunda:script>
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0pdzka0</bpmn:incoming>
+      <bpmn:outgoing>Flow_1jqmr28</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1jqmr28" sourceRef="Activity_118iyp4" targetRef="Activity_0nlwkvw" />
+    <bpmn:serviceTask id="Activity_0nlwkvw" name="send-email-confirmation" camunda:delegateExpression="${sendEmailDelegate}">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://localhost:8086/send-email</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="Accept">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="groovy">
+                import groovy.json.JsonOutput
+                JsonOutput.toJson([
+                  to: execution.getVariable("userEmail"),
+                  subject: "Email Confirmation",
+                  body: "Please confirm your email for user: " + execution.getVariable("userName"),
+                  confirmationToken: execution.getVariable("confirmationToken")
+                ])
+              </camunda:script>
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1jqmr28</bpmn:incoming>
+      <bpmn:outgoing>Flow_1pzitqe</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1pzitqe" sourceRef="Activity_0nlwkvw" targetRef="Activity_0g1mra7" />
+    <bpmn:sequenceFlow id="Flow_0dbfhhy" sourceRef="Activity_0g1mra7" targetRef="Activity_0k5uvzl" />
+    <bpmn:receiveTask id="Activity_0g1mra7" name="email-confirmed" messageRef="Message_EmailConfirmed">
+      <bpmn:incoming>Flow_1pzitqe</bpmn:incoming>
+      <bpmn:outgoing>Flow_0dbfhhy</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:callActivity id="Activity_0k5uvzl" name="chose-next-process" calledElement="chose-next-process">
+      <bpmn:extensionElements>
+        <camunda:in businessKey="#{execution.processBusinessKey}" />
+        <camunda:in variables="all" />
+        <camunda:out variables="all" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0dbfhhy</bpmn:incoming>
+      <bpmn:outgoing>Flow_0wjrb6b</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_0wjrb6b" sourceRef="Activity_0k5uvzl" targetRef="Event_1b29eoh" />
+    <bpmn:scriptTask id="Activity_InitVariables" name="Initialize Variables" scriptFormat="groovy">
+      <bpmn:incoming>Flow_InitScript</bpmn:incoming>
+      <bpmn:outgoing>Flow_0pdzka0</bpmn:outgoing>
+      <bpmn:script>import java.util.UUID
+import java.time.LocalDateTime
+
+// Инициализация начальных переменных пользователя
+execution.setVariable("userId", UUID.randomUUID().toString())
+execution.setVariable("userName", execution.hasVariable("userName") ? execution.getVariable("userName") : "John Doe")
+execution.setVariable("userEmail", execution.hasVariable("userEmail") ? execution.getVariable("userEmail") : "john.doe@example.com")
+execution.setVariable("registrationDate", LocalDateTime.now().toString())
+execution.setVariable("confirmationToken", UUID.randomUUID().toString())
+
+println "Initialized variables: userId=" + execution.getVariable("userId") + 
+        ", userName=" + execution.getVariable("userName") + 
+        ", userEmail=" + execution.getVariable("userEmail")</bpmn:script>
+    </bpmn:scriptTask>
+  </bpmn:process>
+  <bpmn:message id="Message_EmailConfirmed" name="email_confirmed_message" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="user-registration-process">
+      <bpmndi:BPMNShape id="Event_1b29eoh_di" bpmnElement="Event_1b29eoh">
+        <dc:Bounds x="1192" y="159" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1183" y="202" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_118iyp4_di" bpmnElement="Activity_118iyp4">
+        <dc:Bounds x="400" y="137" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0nlwkvw_di" bpmnElement="Activity_0nlwkvw">
+        <dc:Bounds x="600" y="137" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1jzj11l_di" bpmnElement="Activity_0g1mra7">
+        <dc:Bounds x="800" y="137" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0k5uvzl_di" bpmnElement="Activity_0k5uvzl">
+        <dc:Bounds x="1000" y="137" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="82" y="159" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="57" y="202" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0zt5j7z_di" bpmnElement="Activity_InitVariables">
+        <dc:Bounds x="220" y="137" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_InitScript_di" bpmnElement="Flow_InitScript">
+        <di:waypoint x="118" y="177" />
+        <di:waypoint x="220" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0pdzka0_di" bpmnElement="Flow_0pdzka0">
+        <di:waypoint x="320" y="177" />
+        <di:waypoint x="400" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1jqmr28_di" bpmnElement="Flow_1jqmr28">
+        <di:waypoint x="500" y="177" />
+        <di:waypoint x="600" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1pzitqe_di" bpmnElement="Flow_1pzitqe">
+        <di:waypoint x="700" y="177" />
+        <di:waypoint x="800" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0dbfhhy_di" bpmnElement="Flow_0dbfhhy">
+        <di:waypoint x="900" y="177" />
+        <di:waypoint x="1000" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0wjrb6b_di" bpmnElement="Flow_0wjrb6b">
+        <di:waypoint x="1100" y="177" />
+        <di:waypoint x="1192" y="177" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
